@@ -4,6 +4,11 @@ import random
 import qrcode
 from io import BytesIO
 
+# ==========================================
+# 🛑 LETAK LINK RASMI APLIKASI ANDA DI BAWAH INI
+LINK_RASMI_SISTEM = "https://sistem-lot-mdr.streamlit.app"
+# ==========================================
+
 st.set_page_config(page_title="Sistem Lot", layout="wide")
 
 query_params = st.query_params
@@ -18,7 +23,6 @@ def load_data():
 def save_data(dataframe):
     dataframe.to_excel('senarai_peniaga.xlsx', index=False)
 
-# Fungsi semak lot yang dah diambil (Boleh baca "14" atau "14, 15")
 def senarai_lot_terambil(df):
     ambil = []
     for val in df['No_Lot'].dropna():
@@ -30,7 +34,6 @@ def senarai_lot_terambil(df):
             ambil.append(int(val))
     return ambil
 
-# Fungsi buang perpuluhan pada paparan (Contoh 14.0 jadi 14)
 def format_lot(val):
     return str(val).replace('.0', '')
 
@@ -69,7 +72,6 @@ if "user_id" in query_params:
                 baki = [l for l in semua_lot if l not in lot_diambil]
                 
                 if dua_lot:
-                    # Tapis cari lot yang ada jiran bersebelahan
                     pasangan = [l for l in baki if (l + 1) in baki]
                     if pasangan:
                         pilihan = random.choice(pasangan)
@@ -97,10 +99,10 @@ if "user_id" in query_params:
 # ==========================================
 else:
     st.title("🖥️ Kaunter Utama Cabutan Lot")
+    app_url = LINK_RASMI_SISTEM # Link kini diambil secara automatik!
     
     # --- MENU TEPI (SIDEBAR) ---
     st.sidebar.header("⚙️ Tetapan Admin")
-    app_url = st.sidebar.text_input("🔗 Link Aplikasi Anda:", value="https://LETAK-LINK-ANDA-DI-SINI.streamlit.app")
     jumlah_lot = st.sidebar.number_input("Jumlah Lot Tersedia:", min_value=1, value=50)
     
     st.sidebar.divider()
@@ -142,12 +144,9 @@ else:
                         st.success(f"Telah selesai. Lot: {format_lot(peniaga['No_Lot'])}")
                     else:
                         st.info("Peniaga sedang bersedia...")
-                        
-                        # BUTANG BARU UNTUK 2 LOT
                         dua_lot_admin = st.checkbox("☑️ Peniaga ini menempah 2 Lot Bersebelahan")
                         
                         st.write("---")
-                        # MANUAL INPUT BOLEH MASUKKAN KOMA
                         lot_manual = st.text_input("Manual Lot (Contoh: 14 atau 14, 15):")
                         if st.button("Simpan Lot Manual"):
                             if lot_manual:
@@ -171,7 +170,9 @@ else:
 
                 with c2:
                     if peniaga['Status'] != 'Selesai':
-                        link_unik = f"{app_url}?user_id={index_peniaga}&total_lot={jumlah_lot}&dua_lot={dua_lot_admin}"
+                        # Buang tanda / di hujung link jika ada untuk elak error
+                        bersih_url = app_url.rstrip('/') 
+                        link_unik = f"{bersih_url}?user_id={index_peniaga}&total_lot={jumlah_lot}&dua_lot={dua_lot_admin}"
                         qr = qrcode.make(link_unik)
                         buf = BytesIO()
                         qr.save(buf)
