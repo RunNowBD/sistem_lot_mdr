@@ -18,6 +18,22 @@ def load_data():
 def save_data(dataframe):
     dataframe.to_excel('senarai_peniaga.xlsx', index=False)
 
+# Fungsi semak lot yang dah diambil (Boleh baca "14" atau "14, 15")
+def senarai_lot_terambil(df):
+    ambil = []
+    for val in df['No_Lot'].dropna():
+        if isinstance(val, str):
+            for v in val.split(','):
+                if v.strip().isdigit():
+                    ambil.append(int(v.strip()))
+        elif isinstance(val, (int, float)):
+            ambil.append(int(val))
+    return ambil
+
+# Fungsi buang perpuluhan pada paparan (Contoh 14.0 jadi 14)
+def format_lot(val):
+    return str(val).replace('.0', '')
+
 df = load_data()
 
 # ==========================================
@@ -26,6 +42,7 @@ df = load_data()
 if "user_id" in query_params:
     user_index = int(query_params["user_id"])
     jumlah_lot = int(query_params.get("total_lot", 50))
+    dua_lot = query_params.get("dua_lot", "False") == "True"
     
     if user_index < len(df):
         peniaga = df.iloc[user_index]
@@ -36,23 +53,42 @@ if "user_id" in query_params:
         
         if peniaga['Status'] == 'Selesai':
             st.balloons()
-            st.success(f"🎉 TAHNIAH! Anda mendapat Lot Nombor: {int(peniaga['No_Lot'])}")
+            st.success(f"🎉 TAHNIAH! Anda mendapat Lot Nombor: {format_lot(peniaga['No_Lot'])}")
             st.info("Sila 'Screenshot' skrin ini sebagai bukti.")
         else:
+            if dua_lot:
+                st.info("🎟️ **Perhatian:** Anda akan mencabut **2 Lot Bersebelahan**.")
+            else:
+                st.info("🎟️ **Perhatian:** Anda akan mencabut **1 Lot**.")
+                
             st.warning("Sila tekan butang di bawah untuk membuat cabutan undi anda.")
+            
             if st.button("🎲 TEKAN UNTUK CABUT UNDI", use_container_width=True):
                 semua_lot = list(range(1, jumlah_lot + 1))
-                lot_diambil = df['No_Lot'].dropna().tolist()
+                lot_diambil = senarai_lot_terambil(df)
                 baki = [l for l in semua_lot if l not in lot_diambil]
                 
-                if baki:
-                    nombor_berjaya = random.choice(baki)
-                    df.at[user_index, 'No_Lot'] = nombor_berjaya
-                    df.at[user_index, 'Status'] = "Selesai"
-                    save_data(df)
-                    st.rerun()
+                if dua_lot:
+                    # Tapis cari lot yang ada jiran bersebelahan
+                    pasangan = [l for l in baki if (l + 1) in baki]
+                    if pasangan:
+                        pilihan = random.choice(pasangan)
+                        nombor_berjaya = f"{pilihan}, {pilihan + 1}"
+                        df.at[user_index, 'No_Lot'] = nombor_berjaya
+                        df.at[user_index, 'Status'] = "Selesai"
+                        save_data(df)
+                        st.rerun()
+                    else:
+                        st.error("Maaf, tiada lagi lot bersebelahan yang kosong!")
                 else:
-                    st.error("Maaf, semua lot telah habis!")
+                    if baki:
+                        nombor_berjaya = str(random.choice(baki))
+                        df.at[user_index, 'No_Lot'] = nombor_berjaya
+                        df.at[user_index, 'Status'] = "Selesai"
+                        save_data(df)
+                        st.rerun()
+                    else:
+                        st.error("Maaf, semua lot telah habis!")
     else:
         st.error("Data tidak dijumpai.")
 
@@ -103,26 +139,39 @@ else:
                     st.write(f"📌 **Status:** {peniaga['Status']}")
                     
                     if peniaga['Status'] == 'Selesai':
-                        st.success(f"Telah selesai. Lot: {int(peniaga['No_Lot'])}")
+                        st.success(f"Telah selesai. Lot: {format_lot(peniaga['No_Lot'])}")
                     else:
-                        st.info("Peniaga sedang membuat cabutan...")
+                        st.info("Peniaga sedang bersedia...")
+                        
+                        # BUTANG BARU UNTUK 2 LOT
+                        dua_lot_admin = st.checkbox("☑️ Peniaga ini menempah 2 Lot Bersebelahan")
+                        
                         st.write("---")
-                        st.write("Atau masukkan nombor secara manual:")
-                        lot_manual = st.number_input("Nombor Lot", min_value=1, max_value=int(jumlah_lot), step=1)
+                        # MANUAL INPUT BOLEH MASUKKAN KOMA
+                        lot_manual = st.text_input("Manual Lot (Contoh: 14 atau 14, 15):")
                         if st.button("Simpan Lot Manual"):
-                            lot_diambil = df['No_Lot'].dropna().tolist()
-                            if lot_manual in lot_diambil:
-                                st.error("Maaf, nombor lot ini telah diambil!")
+                            if lot_manual:
+                                lot_diambil = senarai_lot_terambil(df)
+                                lot_req = []
+                                for v in str(lot_manual).split(','):
+                                    if v.strip().isdigit():
+                                        lot_req.append(int(v.strip()))
+                                
+                                bertindih = [l for l in lot_req if l in lot_diambil]
+                                if bertindih:
+                                    st.error(f"Maaf, lot {bertindih} telah diambil orang lain!")
+                                else:
+                                    df.at[index_peniaga, 'No_Lot'] = str(lot_manual)
+                                    df.at[index_peniaga, 'Status'] = "Selesai"
+                                    save_data(df)
+                                    st.success("Disimpan!")
+                                    st.rerun()
                             else:
-                                df.at[index_peniaga, 'No_Lot'] = lot_manual
-                                df.at[index_peniaga, 'Status'] = "Selesai"
-                                save_data(df)
-                                st.success("Disimpan!")
-                                st.rerun()
+                                st.error("Sila taip nombor lot dahulu.")
 
                 with c2:
                     if peniaga['Status'] != 'Selesai':
-                        link_unik = f"{app_url}?user_id={index_peniaga}&total_lot={jumlah_lot}"
+                        link_unik = f"{app_url}?user_id={index_peniaga}&total_lot={jumlah_lot}&dua_lot={dua_lot_admin}"
                         qr = qrcode.make(link_unik)
                         buf = BytesIO()
                         qr.save(buf)
