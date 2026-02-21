@@ -11,13 +11,9 @@ LINK_RASMI_SISTEM = "https://sistem-lot-mdr.streamlit.app"
 
 st.set_page_config(
     page_title="Sistem Lot Peniaga",
-    page_icon="🎟️", # Anda boleh tukar emoji ini kepada link gambar logo anda
+    page_icon="https://mdranau.sabah.gov.my/wp-content/uploads/2025/07/Majlis_Daerah_Ranau_Logo-1.png", # Anda boleh tukar emoji ini kepada link gambar logo anda
     layout="wide"
 )
-
-# TAMBAH GAMBAR HEADER DI SINI
-# Gantikan URL di bawah dengan link gambar logo anda
-st.image("https://mdranau.sabah.gov.my/wp-content/uploads/2025/07/Majlis_Daerah_Ranau_Logo-1.png", use_container_width=True)
 
 query_params = st.query_params
 
@@ -233,4 +229,5 @@ else:
             df_kosong = pd.DataFrame(columns=['Nama', 'No_Telefon', 'No_Lot', 'Status'])
             save_data(df_kosong)
             st.rerun()
+
 
