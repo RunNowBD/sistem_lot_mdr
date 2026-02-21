@@ -6,7 +6,6 @@ from io import BytesIO
 
 st.set_page_config(page_title="Sistem Lot", layout="wide")
 
-# Ambil maklumat dari URL
 query_params = st.query_params
 
 # --- FUNGSI BACA & SIMPAN DATA ---
@@ -22,7 +21,7 @@ def save_data(dataframe):
 df = load_data()
 
 # ==========================================
-# PAPARAN PENIAGA (Di Telefon Bimbit Selepas Scan QR)
+# PAPARAN PENIAGA (Di Telefon Bimbit)
 # ==========================================
 if "user_id" in query_params:
     user_index = int(query_params["user_id"])
@@ -41,7 +40,6 @@ if "user_id" in query_params:
             st.info("Sila 'Screenshot' skrin ini sebagai bukti.")
         else:
             st.warning("Sila tekan butang di bawah untuk membuat cabutan undi anda.")
-            # Peniaga tekan butang ini di telefon mereka
             if st.button("🎲 TEKAN UNTUK CABUT UNDI", use_container_width=True):
                 semua_lot = list(range(1, jumlah_lot + 1))
                 lot_diambil = df['No_Lot'].dropna().tolist()
@@ -52,7 +50,7 @@ if "user_id" in query_params:
                     df.at[user_index, 'No_Lot'] = nombor_berjaya
                     df.at[user_index, 'Status'] = "Selesai"
                     save_data(df)
-                    st.rerun() # Refresh skrin telefon
+                    st.rerun()
                 else:
                     st.error("Maaf, semua lot telah habis!")
     else:
@@ -82,7 +80,7 @@ else:
             st.sidebar.success("Berjaya dimasukkan!")
             st.rerun()
 
-    # --- BAHAGIAN TENGAH (CARIAN, QR & MANUAL ASSIGN) ---
+    # --- BAHAGIAN TENGAH ---
     kolum_kiri, kolum_kanan = st.columns([2, 1])
     
     with kolum_kiri:
@@ -108,8 +106,6 @@ else:
                         st.success(f"Telah selesai. Lot: {int(peniaga['No_Lot'])}")
                     else:
                         st.info("Peniaga sedang membuat cabutan...")
-                        
-                        # FUNGSI BARU: Masukkan Nombor Manual
                         st.write("---")
                         st.write("Atau masukkan nombor secara manual:")
                         lot_manual = st.number_input("Nombor Lot", min_value=1, max_value=int(jumlah_lot), step=1)
@@ -126,14 +122,13 @@ else:
 
                 with c2:
                     if peniaga['Status'] != 'Selesai':
-                        # JANA QR CODE UNTUK PENIAGA SCAN (Hantar ID dan Jumlah Lot ke telefon)
                         link_unik = f"{app_url}?user_id={index_peniaga}&total_lot={jumlah_lot}"
                         qr = qrcode.make(link_unik)
                         buf = BytesIO()
                         qr.save(buf)
-                        st.image(buf, caption="Peniaga: Scan QR ini untuk cabut undi", width=200)
+                        st.image(buf, caption="Peniaga: Scan QR ini", width=200)
 
-    # --- TAMBAH MANUAL (JIKA TERTINGGAL NAMA) ---
+    # --- TAMBAH MANUAL ---
     with kolum_kanan:
         st.subheader("📝 Tambah Nama Tercicir")
         with st.form("tambah_manual"):
@@ -147,27 +142,36 @@ else:
                 st.success("Berjaya ditambah!")
                 st.rerun()
 
-    # --- PAPARAN JADUAL & BUTANG BAWAH ---
+    # --- PAPARAN JADUAL & BUTANG RESET ---
     st.divider()
     
     col_tabel, col_refresh = st.columns([4,1])
     with col_tabel:
         st.subheader("📋 Senarai Keputusan")
     with col_refresh:
-        # Butang Refresh untuk Admin tengok result lepas peniaga tekan di telefon
         if st.button("🔄 Refresh Jadual"):
             st.rerun()
 
     st.dataframe(df, use_container_width=True)
     
-    col_dl, col_reset = st.columns(2)
+    st.write("---")
+    st.write("⚙️ **PENGURUSAN DATA SISTEM**")
+    col_dl, col_reset, col_delete = st.columns(3)
+    
     with col_dl:
         csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Keputusan", data=csv, file_name='keputusan_lot.csv', mime='text/csv')
+        st.download_button("📥 Download Keputusan (CSV)", data=csv, file_name='keputusan_lot.csv', mime='text/csv')
     
     with col_reset:
-        if st.button("⚠️ Kosongkan Semua Keputusan"):
-            df['No_Lot'] = None
-            df['Status'] = 'Belum Cabut'
-            save_data(df)
+        if st.button("⚠️ Kosongkan Lot Sahaja"):
+            if not df.empty:
+                df['No_Lot'] = None
+                df['Status'] = 'Belum Cabut'
+                save_data(df)
+                st.rerun()
+                
+    with col_delete:
+        if st.button("🗑️ Padam SEMUA Data (Reset)"):
+            df_kosong = pd.DataFrame(columns=['Nama', 'No_Telefon', 'No_Lot', 'Status'])
+            save_data(df_kosong)
             st.rerun()
