@@ -1,98 +1,100 @@
 import streamlit as st
 import pandas as pd
 import random
+import qrcode
+from io import BytesIO
 
-st.set_page_config(page_title="Sistem Lot", layout="wide")
+st.set_page_config(page_title="Sistem Lot", layout="centered")
 
-st.title("🎟️ Sistem Cabutan Lot Peniaga")
+# Ambil parameter URL untuk tahu siapa yang buka (Admin atau Peniaga)
+query_params = st.query_params
 
-# --- BACA FAIL EXCEL UTAMA ---
-df = pd.read_excel('senarai_peniaga.xlsx')
+# Fungsi baca fail
+def load_data():
+    try:
+        return pd.read_excel('senarai_peniaga.xlsx')
+    except:
+        return pd.DataFrame(columns=['Nama', 'No_Telefon', 'No_Lot', 'Status'])
 
-# --- MENU TEPI (SIDEBAR): FUNGSI UPLOAD ---
-st.sidebar.header("📁 Upload Senarai Nama (Excel)")
-st.sidebar.write("Ada banyak nama? Upload fail Excel anda di sini.")
+df = load_data()
 
-# Butang untuk upload fail
-fail_upload = st.sidebar.file_uploader("Pilih fail .xlsx", type=['xlsx'])
-
-if fail_upload is not None:
-    if st.sidebar.button("Masukkan Data ke Sistem"):
-        # Baca fail yang di-upload
-        df_baru = pd.read_excel(fail_upload)
+# ==========================================
+# PAPARAN PENIAGA (Di Telefon Bimbit Selepas Scan)
+# ==========================================
+if "user_id" in query_params:
+    user_index = int(query_params["user_id"])
+    
+    if user_index < len(df):
+        peniaga = df.iloc[user_index]
+        st.title("📱 Tiket Cabutan Lot Anda")
+        st.write(f"Selamat Datang, **{peniaga['Nama']}**!")
+        st.write(f"📞 No. Tel: {peniaga['No_Telefon']}")
+        st.divider()
         
-        # Sistem tolong tambahkan kolum secara automatik jika tak ada
-        if 'Status' not in df_baru.columns:
-            df_baru['Status'] = 'Belum Cabut'
-        if 'No_Lot' not in df_baru.columns:
-            df_baru['No_Lot'] = None
-            
-        # Gabungkan senarai baru dengan senarai yang sedia ada
-        df = pd.concat([df, df_baru], ignore_index=True)
-        df.to_excel('senarai_peniaga.xlsx', index=False)
-        
-        st.sidebar.success("Berjaya! Nama baru telah dimasukkan.")
-        st.rerun() # Refresh skrin secara automatik
-
-st.sidebar.divider()
-
-# --- BAHAGIAN UTAMA SISTEM ---
-kolum_kiri, kolum_kanan = st.columns([2, 1])
-
-with kolum_kiri:
-    st.subheader("🎲 Kaunter Cabutan")
-    jumlah_lot = st.sidebar.number_input("Berapa jumlah lot yang ada?", min_value=1, value=50)
-    nama_dicari = st.text_input("🔍 Taip Nama Peniaga untuk Cabutan:")
-
-    if nama_dicari:
-        hasil_carian = df[df['Nama'].str.contains(nama_dicari, case=False, na=False)]
-        
-        if not hasil_carian.empty:
-            index_peniaga = hasil_carian.index[0]
-            nama_peniaga = df.at[index_peniaga, 'Nama']
-            status_sekarang = df.at[index_peniaga, 'Status']
-            
-            st.info(f"**Peniaga Dijumpai:** {nama_peniaga} ({df.at[index_peniaga, 'No_Telefon']})")
-            
-            if status_sekarang == "Selesai":
-                st.success(f"Selesai! Lot Nombor: {df.at[index_peniaga, 'No_Lot']}")
-            else:
-                if st.button("🎲 Cabut Nombor Lot Sekarang!"):
-                    semua_lot = list(range(1, int(jumlah_lot) + 1))
-                    lot_diambil = df['No_Lot'].dropna().tolist()
-                    lot_kosong = [lot for lot in semua_lot if lot not in lot_diambil]
-                    
-                    if len(lot_kosong) > 0:
-                        nombor_berjaya = random.choice(lot_kosong)
-                        df.at[index_peniaga, 'No_Lot'] = nombor_berjaya
-                        df.at[index_peniaga, 'Status'] = "Selesai"
-                        df.to_excel('senarai_peniaga.xlsx', index=False)
-                        st.balloons()
-                        st.success(f"Tahniah! Dapat Nombor Lot: {nombor_berjaya}")
-                        st.rerun()
-                    else:
-                        st.error("Semua nombor lot telah habis!")
+        if peniaga['Status'] == 'Selesai':
+            st.balloons()
+            st.success(f"🎉 TAHNIAH! Anda mendapat Lot Nombor: {peniaga['No_Lot']}")
+            st.info("Sila 'Screenshot' skrin ini dan tunjukkan kepada urusetia.")
         else:
-            st.warning("Nama tidak dijumpai.")
+            st.warning("Sedia... Sila minta Admin tekan butang cabut di kaunter, kemudian 'Refresh' skrin ini!")
+    else:
+        st.error("Data tidak dijumpai.")
 
-with kolum_kanan:
-    st.subheader("📝 Tambah Manual")
-    with st.form("borang_tambah"):
-        nama_baru = st.text_input("Nama Peniaga:")
-        tel_baru = st.text_input("No Telefon:")
-        submit = st.form_submit_button("Simpan")
+# ==========================================
+# PAPARAN ADMIN (Di Laptop Kaunter)
+# ==========================================
+else:
+    st.title("🖥️ Kaunter Utama Cabutan Lot")
+    
+    # Letakkan Link Streamlit Rasmi Anda Di Sini
+    app_url = st.sidebar.text_input(
+        "🔗 Masukkan Link Aplikasi Anda:", 
+        value="https://LETAK-LINK-ANDA-DI-SINI.streamlit.app",
+        help="Copy link di bahagian atas browser anda dan paste di sini"
+    )
+    jumlah_lot = st.sidebar.number_input("Berapa jumlah lot?", min_value=1, value=50)
+    nama_dicari = st.text_input("🔍 Cari Nama Peniaga (Contoh: Ahmad):")
+    
+    if nama_dicari:
+        hasil = df[df['Nama'].str.contains(nama_dicari, case=False, na=False)]
         
-        if submit and nama_baru != "":
-            data_baru = pd.DataFrame({'Nama': [nama_baru], 'No_Telefon': [tel_baru], 'No_Lot': [None], 'Status': ['Belum Cabut']})
-            df = pd.concat([df, data_baru], ignore_index=True)
-            df.to_excel('senarai_peniaga.xlsx', index=False)
-            st.success("Berjaya ditambah!")
-            st.rerun()
+        if not hasil.empty:
+            index_peniaga = hasil.index[0]
+            peniaga = df.iloc[index_peniaga]
+            
+            st.write("---")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader(f"👤 {peniaga['Nama']}")
+                st.write(f"Status: **{peniaga['Status']}**")
+                
+                if peniaga['Status'] != 'Selesai':
+                    # Butang Cabut (Admin Tekan)
+                    if st.button("🎲 Cabut Nombor Sekarang"):
+                        semua_lot = list(range(1, int(jumlah_lot) + 1))
+                        lot_diambil = df['No_Lot'].dropna().tolist()
+                        baki = [l for l in semua_lot if l not in lot_diambil]
+                        
+                        if baki:
+                            nombor_berjaya = random.choice(baki)
+                            df.at[index_peniaga, 'No_Lot'] = nombor_berjaya
+                            df.at[index_peniaga, 'Status'] = "Selesai"
+                            df.to_excel('senarai_peniaga.xlsx', index=False)
+                            st.success(f"Berjaya! Dapat Lot: {nombor_berjaya}")
+                            st.rerun()
+                        else:
+                            st.error("Semua lot habis!")
+                else:
+                    st.success(f"Telah selesai. Lot: {peniaga['No_Lot']}")
+                    
+            with col2:
+                # JANA QR CODE UNTUK PENIAGA SCAN
+                link_unik = f"{app_url}?user_id={index_peniaga}"
+                qr = qrcode.make(link_unik)
+                buf = BytesIO()
+                qr.save(buf)
+                st.image(buf, caption="Minta peniaga Scan QR ini", width=200)
 
-# --- PAPARAN JADUAL & DOWNLOAD ---
-st.divider()
-st.subheader("📋 Senarai Terkini Peniaga")
-st.dataframe(df, use_container_width=True)
-
-csv = df.to_csv(index=False).encode('utf-8')
-st.download_button(label="📥 Download Keputusan", data=csv, file_name='keputusan_lot.csv', mime='text/csv')
+    st.divider()
+    st.dataframe(df)
